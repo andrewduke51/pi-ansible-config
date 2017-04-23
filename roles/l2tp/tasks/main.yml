@@ -1,0 +1,99 @@
+---
+# - include: firewall.yml
+
+- set_fact:
+    real_ansible_host: "{{ ansible_host }}"
+
+- name: change hostname
+  hostname:
+    name: "{{l2tp_server}}"
+
+- name: change name in host file
+  replace:
+    dest: /etc/hosts
+    regexp: 'raspberry'                            #'(\s+)old\.host\.name(\s+.*)?$'
+    replace: 'pi-l2tp-01'
+    #before: '*'
+    backup: yes
+
+#- name: 'Wait for server to restart'
+#  shell: sleep 2 && reboot
+#  async: 1
+#  poll: 0
+#  ignore_errors: true
+#
+#- name: "wait ......."
+#  local_action: wait_for host={{ real_ansible_host }} port=22 state=started delay=10
+#  become: false
+
+- name: 'static IP'
+  copy:
+    src: templates/dhcpcd.conf.j2
+    dest: /etc/dhcpcd.conf
+    mode: 0600
+
+- name: 'Update APT package cache'
+  action: apt update_cache=yes
+
+- name: 'Upgrade APT to the lastest packages'
+  action: apt upgrade=safe
+
+- name: Install list of packages
+  apt: name={{item}} state=installed
+  with_items:
+       - openswan
+       - xl2tpd
+       - ppp
+       - lsof
+
+- name: create bin directory
+  file:
+    path: "{{item}}"
+    state: directory
+    mode: 0755
+  with_items:
+      - "{{bin_directory}}/bin"
+  become: true
+  become_user: "{{user}}"
+
+- name: create scripts
+  template:
+    src: "{{item}}"
+    dest: /home/{{user}}/bin/script.sh
+    owner: root
+    group: root
+    mode: 0755
+  with_items:
+    - script.j2
+
+- name: This command will change the working directory to and will only run when outlog.txt doesn't exist.
+  script: script.sh >> outlog.txt
+  args:
+    chdir: "{{bin_directory}}/bin"
+    creates: outlog.txt
+
+# Before 2.3, option 'dest' or 'name' was used instead of 'path'
+- name: insert/update configuration block in /etc/rc.local
+  blockinfile:
+    path: /etc/rc.local
+    block: |
+      for vpn in /proc/sys/net/ipv4/conf/*; do echo 0 > $vpn/accept_redirects; echo 0 > $vpn/send_redirects; done
+      iptables --table nat --append POSTROUTING --jump MASQUERADE
+
+- name: Copy a new "ipsec.conf file into place, backing up the original if it differs from the copied version
+  copy:
+    src: ../files/ipsec.j2
+    dest: /etc/ipsec.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+
+- name: Set authorized key took from file
+  authorized_key:
+    user: "{{user}}"
+    state: present
+    key: "{{ lookup('file', '/home/ubuntu-ansible/.ssh/id_rsa.pub') }}"
+
+
+

@@ -1,0 +1,13 @@
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+eapol_version=1
+ap_scan=1
+fast_reauth=1
+
+network={
+	ssid="FX2DM"
+    scan_ssid=1
+    proto=RSN WPA
+    pairwise=CCMP TKIP
+	psk="{{ wirelessPsk }}"
+	key_mgmt=WPA-PSK
+}

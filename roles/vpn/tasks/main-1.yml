@@ -1,0 +1,57 @@
+---
+# - include: firewall.yml
+
+- name: install openvpn
+  apt:
+    name: openvpn
+    state: present
+
+- name: install easyrsa
+  apt:
+    name: easy-rsa
+    state: present
+
+- name: download EasyRSA
+  get_url: url={{easyrsa_url}} dest=/tmp
+  become: true
+  become_user: "{{user}}"
+
+- name: unarchive EasyRSA
+  unarchive:
+    src: /tmp/{{easyrsa_version}}.tgz
+    dest: /tmp
+    remote_src: yes
+
+- name: remove /etc/openvpn/easy-rsa
+  file:
+    path: /etc/openvpn/easy-rsa
+    state: absent
+
+- name: copy EasyRSA files
+  command: cp -r /tmp/{{easyrsa_version}} /etc/openvpn/
+
+- name: Move EasyRSA files
+  command: mv /etc/openvpn/{{easyrsa_version}} /etc/openvpn/easy-rsa
+
+- name: Add Easy_RSA line
+  lineinfile: dest=/etc/openvpn/easy-rsa/vars regexp='EASY_RSA' line='export EASY_RSA=”/etc/openvpn/easy-rsa”'
+
+- name: Add Easy_RSA line
+  lineinfile: dest=/etc/openvpn/easy-rsa/vars regexp='KEY_SIZE' line='export KEY_SIZE=”1024”'
+
+- name: source vars
+  command: . ./vars
+  args:
+    chdir: /etc/openvpn/easy-rsa
+
+- name: make keys
+  command: "{{ item }} chdir=/etc/openvpn/easy-rsa"
+  with_items:
+  - ./clean-all
+  - ./build-ca
+  - ./build-key-server vpn-server -y
+  - ./build-key-pass
+  - ./build-key-pass client1
+
+
+
