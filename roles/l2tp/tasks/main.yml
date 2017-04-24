@@ -93,7 +93,7 @@
   authorized_key:
     user: "{{user}}"
     state: present
-    key: "{{ lookup('file', '/home/ubuntu-ansible/.ssh/id_rsa.pub') }}"
+    key: "{{ lookup('file', '/home/$USER/.ssh/id_rsa.pub') }}"
 
 
 
